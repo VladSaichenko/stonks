@@ -2,10 +2,6 @@ import csv
 import datetime
 
 import colorama as cm
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
-import matplotlib.ticker as plticker
-import xlsxwriter
 from openpyxl import load_workbook
 from tqdm import tqdm
 
@@ -113,25 +109,22 @@ def get_intervals():
 def get_tickers():
     config = list(load_workbook('config.xlsx').worksheets[0].values)[1:]
     tickers = list(filter(lambda t: t, [row[0] for row in config]))
-    plot_ticks = list(filter(lambda t: t, [row[1] for row in config]))
-    return tickers, plot_ticks
+    return tickers
 
 
-def analyse(intervals, tickers, find, cond, perc, plot_ticks):
+def analyse(intervals, tickers, find, cond, perc):
     def format_date(s):
         tpl = tuple(map(int, s.split('.')))
         return datetime.date(tpl[2], tpl[1], tpl[0])
 
     wb = load_workbook('todays.xlsx')
 
-    todays_df = list(wb.worksheets[0].values)[1:]
+    todays_df = tuple(wb.worksheets[0].values)[1:]
 
-    result_df = []
-    all_ticks_df = []
+    result_df = all_ticks_df = []
     for i in tqdm(range(0, 27)):
         with open(f'stocks/stonks_{i}.csv') as f:
-            reader = csv.reader(f)
-            df = [list(row) for row in reader][1:]
+            df = tuple(list(row) for row in csv.reader(f))[1:]
 
         # Formatting data
         for index, row in enumerate(df):
@@ -144,53 +137,33 @@ def analyse(intervals, tickers, find, cond, perc, plot_ticks):
             df[index][7] = int(float(row[7])) if row[7] else None
 
         if tickers:
-            intrxns = tickers
+            intrxns = set(tickers)
         else:
-            intrxns = []
-            for row in df:
-                if row[0] not in intrxns:
-                    intrxns.append(row[0])
+            intrxns = set(row[0] for row in df)
+
+        if None in intrxns:
+            intrxns.remove(None)
 
         for ticker in intrxns:
-            tick_df = list(filter(lambda r: r[0] == ticker, df))
+            tick_df = tuple(filter(lambda r: r[0] == ticker, df))
             try:
-                curr_price = list(filter(lambda r: r[1] == ticker, todays_df))[0][4]
+                curr_price = tuple(filter(lambda r: r[1] == ticker, todays_df))[0][4]
             except IndexError:
                 continue
 
             if (not tick_df) or (not curr_price):
                 continue
 
-            # MATPLOTLIB PLOT
-            if ticker in plot_ticks or not plot_ticks:
-                plt.style.use('seaborn')
-                fig, ax = plt.subplots()
-                fig.subplots_adjust(bottom=0.3)
-                plt.xticks(rotation=90)
-                plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-                xloc = plticker.MaxNLocator(nbins=31)
-                ax.xaxis.set_major_locator(xloc)
-                yloc = plticker.MaxNLocator(nbins=11)
-                ax.yaxis.set_major_locator(yloc)
-                dates = [row[1] for row in tick_df]
-                plt.plot(dates, [row[5] for row in tick_df], linestyle='dashed', linewidth=0.25)
-                plt.plot(dates, [row[3] for row in tick_df], linestyle='solid', linewidth=0.25)
-                plt.plot(dates, [row[4] for row in tick_df], linestyle='solid', linewidth=0.25)
-                tick_df.append([ticker, format_date(todays_df[0][3]), None, curr_price, curr_price, curr_price, None, None])
-                ax.plot(tick_df[-1][1], tick_df[-1][5], 'ro', markersize=4.3)
-                plt.title(f'{ticker} history')
-
             for interval in intervals:
-                frm = format_date(interval[0])
-                to = format_date(interval[1])
-                filt_df = list(filter(lambda r: (r[1] < to) and (r[1] > frm) and ((r[3] != None) and (r[4] != None) and (r[5] != None)), tick_df))
-                company, _, market = list(filter(lambda r: r[1] == ticker, todays_df))[0][:3]
+                frm, to = format_date(interval[0]), format_date(interval[1])
+                filt_df = tuple(filter(lambda r: (r[1] < to) and (r[1] > frm) and ((r[3] != None) and (r[4] != None) and (r[5] != None)), tick_df))
+                company, _, market = tuple(filter(lambda r: r[1] == ticker, todays_df))[0][:3]
 
                 if not filt_df:
                     continue
 
-                max_price = max([row[3] for row in filt_df])
-                low_price = min([row[4] for row in filt_df])
+                max_price = max(set(row[3] for row in filt_df))
+                low_price = min(set(row[4] for row in filt_df))
 
                 if find == 'max':
                     ratio = round(float((curr_price-max_price)/(max_price/100)), 3)
@@ -208,25 +181,21 @@ def analyse(intervals, tickers, find, cond, perc, plot_ticks):
                         result_df.append(row)
                     all_ticks_df.append(row)
 
-                plt.hlines(max_price, xmin=frm, xmax=to, color='blue')
-                plt.hlines(low_price, xmin=frm, xmax=to, color='green')
 
-            if ticker in plot_ticks or not plot_ticks:
-                plt.tight_layout()
-                plt.savefig(f'image-graphics/{ticker}.png', dpi=600)
-                plt.close('all')
-
-            todays_price = todays_df[0][3]
+        todays_price = todays_df[0][3]
 
     return result_df, all_ticks_df, todays_price
 
 
 if __name__ == '__main__':
     intervals, find, cond, perc = get_intervals()
-    tickers, plot_ticks = get_tickers()
-    res_df, whole_df, todays_price = analyse(intervals, tickers, find, cond, perc, plot_ticks)
+    tickers = get_tickers()
+    del get_tickers, get_intervals, get_custom_intervals, cm
+    res_df, whole_df, todays_price = analyse(intervals, tickers, find, cond, perc)
 
+    import xlsxwriter
     workbook = xlsxwriter.Workbook('result.xlsx')
+    del xlsxwriter
 
     def add_headers(sheet):
         sheet.write(0, 0, 'Тикер')
@@ -254,17 +223,13 @@ if __name__ == '__main__':
         for j, val in enumerate(row):
             all_sheet.write(i+1, j, val)
 
-    unique_ticks = []
-    for row in whole_df:
-        if row[0] not in unique_ticks:
-            unique_ticks.append(row[0])
+    unique_ticks = set(row[0] for row in whole_df)
 
     for tick in unique_ticks:
         tick_sheet = workbook.add_worksheet(tick)
         add_headers(tick_sheet)
-        for i, row in enumerate(list(filter(lambda r: r[0] == tick, whole_df))):
+        for i, row in enumerate(tuple(filter(lambda r: r[0] == tick, whole_df))):
             for j, val in enumerate(row):
                 tick_sheet.write(i+1, j, val)
-        tick_sheet.insert_image('M2', f'image-graphics/{tick}.png')
 
     workbook.close()
