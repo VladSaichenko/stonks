@@ -165,21 +165,30 @@ def analyse(intervals, tickers, find, cond, perc):
                 max_price = max(set(row[3] for row in filt_df))
                 low_price = min(set(row[4] for row in filt_df))
 
-                if find == 'max':
-                    ratio = round(float((curr_price-max_price)/(max_price/100)), 3)
-                    row = [ticker, company, market, find, float(max_price), float(low_price), curr_price,
-                           round(ratio, 2), interval[0], interval[1]]
-                    if (cond == 'more' and perc <= ratio) or (cond == 'less' and perc >= ratio):
-                        result_df.append(row)
-                    all_ticks_df.append(row)
+                level_price = max_price if find == 'max' else low_price
 
-                elif find == 'min':
-                    ratio = round(float((curr_price-low_price)/(low_price/100)), 3)
-                    row = [ticker, company, market, find, float(max_price), float(low_price), curr_price,
-                           round(ratio, 2), interval[0], interval[1]]
-                    if (cond == 'more' and perc <= ratio) or (cond == 'less' and perc >= ratio):
-                        result_df.append(row)
-                    all_ticks_df.append(row)
+                ratio = round(float((curr_price - level_price) / (level_price / 100)), 3)
+                row = [ticker, company, market, find, float(max_price), float(low_price), curr_price,
+                       round(ratio, 2), interval[0], interval[1]]
+                if (cond == 'more' and perc <= ratio) or (cond == 'less' and perc >= ratio):
+                    result_df.append(row)
+                all_ticks_df.append(row)
+
+                # if find == 'max':
+                #     ratio = round(float((curr_price-max_price)/(max_price/100)), 3)
+                #     row = [ticker, company, market, find, float(max_price), float(low_price), curr_price,
+                #            round(ratio, 2), interval[0], interval[1]]
+                #     if (cond == 'more' and perc <= ratio) or (cond == 'less' and perc >= ratio):
+                #         result_df.append(row)
+                #     all_ticks_df.append(row)
+                #
+                # elif find == 'min':
+                #     ratio = round(float((curr_price-low_price)/(low_price/100)), 3)
+                #     row = [ticker, company, market, find, float(max_price), float(low_price), curr_price,
+                #            round(ratio, 2), interval[0], interval[1]]
+                #     if (cond == 'more' and perc <= ratio) or (cond == 'less' and perc >= ratio):
+                #         result_df.append(row)
+                #     all_ticks_df.append(row)
 
 
         todays_price = todays_df[0][3]
@@ -209,27 +218,31 @@ if __name__ == '__main__':
         sheet.write(0, 8, f'От')
         sheet.write(0, 9, f'До')
 
+
     favorites_sheet = workbook.add_worksheet('Избранное')
     add_headers(favorites_sheet)
     line = 0
     for i, row in enumerate(res_df):
         for j, val in enumerate(row):
-            favorites_sheet.write(i+1, j, val)
+            favorites_sheet.write(i + 1, j, val)
 
     all_sheet = workbook.add_worksheet('Все')
     add_headers(all_sheet)
     line = 0
     for i, row in enumerate(whole_df):
         for j, val in enumerate(row):
-            all_sheet.write(i+1, j, val)
+            all_sheet.write(i + 1, j, val)
 
-    unique_ticks = set(row[0] for row in whole_df)
+    unique_ticks = []
+    for row in whole_df:
+        if row[0] not in unique_ticks:
+            unique_ticks.append(row[0])
 
     for tick in unique_ticks:
         tick_sheet = workbook.add_worksheet(tick)
         add_headers(tick_sheet)
-        for i, row in enumerate(tuple(filter(lambda r: r[0] == tick, whole_df))):
+        for i, row in enumerate(list(filter(lambda r: r[0] == tick, whole_df))):
             for j, val in enumerate(row):
-                tick_sheet.write(i+1, j, val)
+                tick_sheet.write(i + 1, j, val)
 
     workbook.close()
