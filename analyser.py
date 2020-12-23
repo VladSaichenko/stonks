@@ -1,7 +1,6 @@
-import csv
 import datetime
-
 import colorama as cm
+import pandas as pd
 from openpyxl import load_workbook
 from tqdm import tqdm
 
@@ -117,132 +116,71 @@ def analyse(intervals, tickers, find, cond, perc):
         tpl = tuple(map(int, s.split('.')))
         return datetime.date(tpl[2], tpl[1], tpl[0])
 
-    wb = load_workbook('todays.xlsx')
+    todays_global_df = pd.read_excel('todays.xlsx')
 
-    todays_df = tuple(wb.worksheets[0].values)[1:]
+    columns = ['Тикер', 'Компания', 'Биржа', 'Max', 'Min', f'Цена ({todays_global_df.iat[0, 3]})', f'Соотношение (от {find}),%', 'От', 'До']
+    result_df = all_ticks_df = pd.DataFrame([], columns=columns)
 
-    result_df = all_ticks_df = []
     for i in tqdm(range(0, 27)):
-        with open(f'stocks/stonks_{i}.csv') as f:
-            df = tuple(list(row) for row in csv.reader(f))[1:]
-
-        # Formatting data
-        for index, row in enumerate(df):
-            df[index][1] = format_date(row[1])
-            df[index][2] = float(row[2]) if row[2] else None
-            df[index][3] = float(row[3]) if row[2] else None
-            df[index][4] = float(row[4]) if row[2] else None
-            df[index][5] = float(row[5]) if row[2] else None
-            df[index][6] = float(row[6]) if row[2] else None
-            df[index][7] = int(float(row[7])) if row[7] else None
+        df = pd.read_csv(f'stocks/stonks_{i}.csv')
 
         if tickers:
-            intrxns = set(tickers)
+            intrxns = tickers
         else:
-            intrxns = set(row[0] for row in df)
-
-        if None in intrxns:
-            intrxns.remove(None)
+            intrxns = tuple(df.iloc[:, 0].unique())
 
         for ticker in intrxns:
-            tick_df = tuple(filter(lambda r: r[0] == ticker, df))
+            todays_df = todays_global_df[todays_global_df.iloc[:, 1] == ticker]
+            if todays_df.empty:
+                continue
+
+            tick_df = df[df.iloc[:, 0] == ticker]
+            tick_df[tick_df.columns[1]] = tuple(map(format_date, tick_df[tick_df.columns[1]]))
+
             try:
-                curr_price = tuple(filter(lambda r: r[1] == ticker, todays_df))[0][4]
+                curr_price = float(todays_df.iat[0, 4])
             except IndexError:
                 continue
 
-            if (not tick_df) or (not curr_price):
+            if tick_df.empty or (not curr_price):
                 continue
 
             for interval in intervals:
                 frm, to = format_date(interval[0]), format_date(interval[1])
-                filt_df = tuple(filter(lambda r: (r[1] < to) and (r[1] > frm) and ((r[3] != None) and (r[4] != None) and (r[5] != None)), tick_df))
-                company, _, market = tuple(filter(lambda r: r[1] == ticker, todays_df))[0][:3]
-
-                if not filt_df:
+                filt_df = tick_df[(frm <= tick_df.iloc[:, 1]) & (tick_df.iloc[:, 1] <= to)]
+                if filt_df.empty:
                     continue
 
-                max_price = max(set(row[3] for row in filt_df))
-                low_price = min(set(row[4] for row in filt_df))
+                company, market = todays_df.iat[0, 0], todays_df.iat[0, 2]
+
+                max_price = filt_df.iloc[:, 3].max()
+                low_price = filt_df.iloc[:, 4].min()
 
                 level_price = max_price if find == 'max' else low_price
 
                 ratio = round(float((curr_price - level_price) / (level_price / 100)), 3)
-                row = [ticker, company, market, find, float(max_price), float(low_price), curr_price,
-                       round(ratio, 2), interval[0], interval[1]]
+                row = pd.DataFrame([[ticker, company, market, float(max_price), float(low_price), curr_price,
+                       round(ratio, 2), interval[0], interval[1]]], columns=columns)
                 if (cond == 'more' and perc <= ratio) or (cond == 'less' and perc >= ratio):
-                    result_df.append(row)
-                all_ticks_df.append(row)
+                    result_df = result_df.append(row)
+                all_ticks_df = all_ticks_df.append(row)
 
-                # if find == 'max':
-                #     ratio = round(float((curr_price-max_price)/(max_price/100)), 3)
-                #     row = [ticker, company, market, find, float(max_price), float(low_price), curr_price,
-                #            round(ratio, 2), interval[0], interval[1]]
-                #     if (cond == 'more' and perc <= ratio) or (cond == 'less' and perc >= ratio):
-                #         result_df.append(row)
-                #     all_ticks_df.append(row)
-                #
-                # elif find == 'min':
-                #     ratio = round(float((curr_price-low_price)/(low_price/100)), 3)
-                #     row = [ticker, company, market, find, float(max_price), float(low_price), curr_price,
-                #            round(ratio, 2), interval[0], interval[1]]
-                #     if (cond == 'more' and perc <= ratio) or (cond == 'less' and perc >= ratio):
-                #         result_df.append(row)
-                #     all_ticks_df.append(row)
-
-
-        todays_price = todays_df[0][3]
-
-    return result_df, all_ticks_df, todays_price
+    return result_df, all_ticks_df
 
 
 if __name__ == '__main__':
     intervals, find, cond, perc = get_intervals()
     tickers = get_tickers()
     del get_tickers, get_intervals, get_custom_intervals, cm
-    res_df, whole_df, todays_price = analyse(intervals, tickers, find, cond, perc)
+    res_df, whole_df = analyse(intervals, tickers, find, cond, perc)
 
-    import xlsxwriter
-    workbook = xlsxwriter.Workbook('result.xlsx')
-    del xlsxwriter
+    writer = pd.ExcelWriter('result.xlsx', engine='xlsxwriter')
 
-    def add_headers(sheet):
-        sheet.write(0, 0, 'Тикер')
-        sheet.write(0, 1, 'Компания')
-        sheet.write(0, 2, 'Биржа')
-        sheet.write(0, 3, f'Уровень {find}')
-        sheet.write(0, 4, 'Max')
-        sheet.write(0, 5, 'Min')
-        sheet.write(0, 6, f'Цена {todays_price}')
-        sheet.write(0, 7, f'Соотношение {find},%')
-        sheet.write(0, 8, f'От')
-        sheet.write(0, 9, f'До')
+    whole_df.to_excel(writer, sheet_name='Все', index=False)
+    res_df.to_excel(writer, sheet_name='Избранное', index=False)
 
+    for ticker in res_df.iloc[:, 0].unique():
+        tick_df = res_df[res_df.iloc[:, 0] == ticker]
+        tick_df.to_excel(writer, sheet_name=ticker, index=False)
 
-    favorites_sheet = workbook.add_worksheet('Избранное')
-    add_headers(favorites_sheet)
-    line = 0
-    for i, row in enumerate(res_df):
-        for j, val in enumerate(row):
-            favorites_sheet.write(i + 1, j, val)
-
-    all_sheet = workbook.add_worksheet('Все')
-    add_headers(all_sheet)
-    line = 0
-    for i, row in enumerate(whole_df):
-        for j, val in enumerate(row):
-            all_sheet.write(i + 1, j, val)
-
-    unique_ticks = []
-    for row in whole_df:
-        if row[0] not in unique_ticks:
-            unique_ticks.append(row[0])
-
-    for tick in unique_ticks:
-        tick_sheet = workbook.add_worksheet(tick)
-        add_headers(tick_sheet)
-        for i, row in enumerate(list(filter(lambda r: r[0] == tick, whole_df))):
-            for j, val in enumerate(row):
-                tick_sheet.write(i + 1, j, val)
-
-    workbook.close()
+    writer.save()
