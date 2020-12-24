@@ -9,6 +9,8 @@ from openpyxl import load_workbook
 from tqdm import tqdm
 
 
+pd.options.mode.chained_assignment = None
+
 def get_custom_intervals():
     def is_valid_interval(frm, to):
         try:
@@ -132,12 +134,12 @@ def analyse(intervals, tickers):
             ax.xaxis.set_major_locator(xloc)
             yloc = plticker.MaxNLocator(nbins=11)
             ax.yaxis.set_major_locator(yloc)
+            tick_df = tick_df.append(pd.DataFrame([[ticker, format_date(todays_df.iat[0, 3]), None, curr_price, curr_price, curr_price, None, None]], columns=tick_df.columns))
             dates = tick_df.iloc[:, 1]
             plt.plot(dates, tick_df.iloc[:, 5], linestyle='dashed', linewidth=0.25)
             plt.plot(dates, tick_df.iloc[:, 3], linestyle='solid', linewidth=0.25)
             plt.plot(dates, tick_df.iloc[:, 4], linestyle='solid', linewidth=0.25)
-            tick_df = tick_df.append(pd.DataFrame([[ticker, format_date(todays_df.iat[0, 3]), None, curr_price, curr_price, curr_price, None, None]], columns=tick_df.columns))
-            ax.plot(tick_df.iat[-1, 1], tick_df.iat[-1, 5], 'ro', markersize=4.3)
+            ax.plot(tick_df.iat[-1, 1], tick_df.iat[-1, 5], 'ro', markersize=4)
             plt.title(f'{ticker} history')
 
             for interval in intervals:
