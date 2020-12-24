@@ -1,8 +1,11 @@
 import datetime
+
 import colorama as cm
 import pandas as pd
 from openpyxl import load_workbook
 from tqdm import tqdm
+
+pd.options.mode.chained_assignment = None
 
 
 def get_custom_intervals():
@@ -153,8 +156,7 @@ def analyse(intervals, tickers, find, cond, perc):
 
                 company, market = todays_df.iat[0, 0], todays_df.iat[0, 2]
 
-                max_price = filt_df.iloc[:, 3].max()
-                low_price = filt_df.iloc[:, 4].min()
+                max_price, low_price = filt_df.iloc[:, 3].max(), filt_df.iloc[:, 4].min()
 
                 level_price = max_price if find == 'max' else low_price
 
