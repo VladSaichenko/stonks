@@ -49,7 +49,7 @@ def get_custom_intervals():
             frm, to = get_interval(index)
             correct = is_valid_interval(frm, to)
 
-        intervals.append((frm, to))
+        intervals.append((format_date(frm), format_date(to)))
 
     return intervals
 
