@@ -8,6 +8,11 @@ from tqdm import tqdm
 pd.options.mode.chained_assignment = None
 
 
+def format_date(s):
+    tpl = tuple(map(int, s.split('.')))
+    return datetime.date(tpl[2], tpl[1], tpl[0])
+
+
 def get_custom_intervals():
     def is_valid_interval(frm, to):
         try:
@@ -41,7 +46,7 @@ def get_custom_intervals():
             frm, to = get_interval(index)
             correct = is_valid_interval(frm, to)
 
-        intervals.append((frm, to))
+        intervals.append((format_date(frm), format_date(to)))
 
     return intervals
 
@@ -84,24 +89,26 @@ def get_intervals():
 
     values = set(map(int, input('Укажите промежутки: ').split()))
 
+    latest_date = format_date(pd.read_csv('stocks/stocks_1.csv').iat[-1, 1])
+
     intervals = []
     for value in values:
         if value == 1:
-            intervals.append(('16.10.2020', '22.10.2020'))
+            intervals.append((latest_date-datetime.timedelta(days=5), latest_date))
         elif value == 2:
-            intervals.append(('22.09.2020', '22.10.2020'))
+            intervals.append((latest_date-datetime.timedelta(days=30), latest_date))
         elif value == 3:
-            intervals.append(('22.07.2020', '22.10.2020'))
+            intervals.append((latest_date-datetime.timedelta(days=30*3), latest_date))
         elif value == 4:
-            intervals.append(('22.04.2020', '22.10.2020'))
+            intervals.append((latest_date-datetime.timedelta(days=30*6), latest_date))
         elif value == 5:
-            intervals.append(('22.10.2019', '22.10.2020'))
+            intervals.append((latest_date-datetime.timedelta(days=30*12), latest_date))
         elif value == 6:
-            intervals.append(('20.10.2017', '22.10.2020'))
+            intervals.append((latest_date-datetime.timedelta(days=30*12*3), latest_date))
         elif value == 7:
-            intervals.append(('22.10.2015', '22.10.2020'))
+            intervals.append((latest_date-datetime.timedelta(days=30*12*5), latest_date))
         elif value == 8:
-            intervals.append(('22.10.2010', '22.10.2020'))
+            intervals.append((latest_date-datetime.timedelta(days=30*12*10), latest_date))
         elif value == 0:
             intervals += get_custom_intervals()
 
@@ -115,17 +122,13 @@ def get_tickers():
 
 
 def analyse(intervals, tickers, find, cond, perc):
-    def format_date(s):
-        tpl = tuple(map(int, s.split('.')))
-        return datetime.date(tpl[2], tpl[1], tpl[0])
-
     todays_global_df = pd.read_excel('todays.xlsx')
 
     columns = ['Тикер', 'Компания', 'Биржа', 'Max', 'Min', f'Цена ({todays_global_df.iat[0, 3]})', f'Соотношение (от {find}),%', 'От', 'До']
     result_df = all_ticks_df = pd.DataFrame([], columns=columns)
 
-    for i in tqdm(range(0, 27)):
-        df = pd.read_csv(f'stocks/stonks_{i}.csv')
+    for i in tqdm(range(1, 26 + 1)):
+        df = pd.read_csv(f'stocks/stocks_{i}.csv')
 
         if tickers:
             intrxns = tickers
@@ -149,7 +152,7 @@ def analyse(intervals, tickers, find, cond, perc):
                 continue
 
             for interval in intervals:
-                frm, to = format_date(interval[0]), format_date(interval[1])
+                frm, to = interval[0], interval[1]
                 filt_df = tick_df[(frm <= tick_df.iloc[:, 1]) & (tick_df.iloc[:, 1] <= to)]
                 if filt_df.empty:
                     continue
@@ -162,7 +165,7 @@ def analyse(intervals, tickers, find, cond, perc):
 
                 ratio = round(float((curr_price - level_price) / (level_price / 100)), 3)
                 row = pd.DataFrame([[ticker, company, market, float(max_price), float(low_price), curr_price,
-                       round(ratio, 2), interval[0], interval[1]]], columns=columns)
+                       round(ratio, 2), frm.strftime('%d.%m.%y'), to.strftime('%d.%m.%y')]], columns=columns)
                 if (cond == 'more' and perc <= ratio) or (cond == 'less' and perc >= ratio):
                     result_df = result_df.append(row)
                 all_ticks_df = all_ticks_df.append(row)
