@@ -1,5 +1,5 @@
 import datetime
-
+import os
 import colorama as cm
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -68,7 +68,7 @@ def get_intervals():
 
     values = set(map(int, input('Укажите промежутки: ').split()))
 
-    latest_date = format_date(pd.read_csv('stocks/stocks_1.csv').iat[-1, 1])
+    latest_date = format_date(pd.read_csv('stocks/' + os.listdir('stocks')[-1]).iat[-1, 1])
 
     intervals = []
     for value in values:
@@ -101,10 +101,10 @@ def get_tickers():
 
 
 def analyse(intervals, tickers):
-    todays_global_df = pd.read_excel('todays.xlsx')
+    todays_global_df = pd.read_excel('todays.xlsx', engine='openpyxl')
 
-    for i in tqdm(range(1, 26+1)):
-        df = pd.read_csv(f'stocks/stocks_{i}.csv')
+    for file in tqdm(os.listdir('stocks')):
+        df = pd.read_csv('stocks/' + file)
 
         if tickers:
             intrxns = tickers

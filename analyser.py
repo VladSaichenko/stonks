@@ -1,4 +1,5 @@
 import datetime
+import os
 
 import colorama as cm
 import pandas as pd
@@ -122,13 +123,13 @@ def get_tickers():
 
 
 def analyse(intervals, tickers, find, cond, perc):
-    todays_global_df = pd.read_excel('todays.xlsx')
+    todays_global_df = pd.read_excel('todays.xlsx', engine='openpyxl')
 
     columns = ['Тикер', 'Компания', 'Биржа', 'Max', 'Min', f'Цена ({todays_global_df.iat[0, 3]})', f'Соотношение (от {find}),%', 'От', 'До']
     result_df = all_ticks_df = pd.DataFrame([], columns=columns)
 
-    for i in tqdm(range(1, 26 + 1)):
-        df = pd.read_csv(f'stocks/stocks_{i}.csv')
+    for file in tqdm(os.listdir('stocks')):
+        df = pd.read_csv('stocks/' + file)
 
         if tickers:
             intrxns = tickers
