@@ -10,6 +10,9 @@ pd.options.mode.chained_assignment = None
 
 
 def format_date(s):
+    if isinstance(s, pd.Timestamp):
+        return s
+
     tpl = tuple(map(int, s.split('.')))
     return datetime.date(tpl[2], tpl[1], tpl[0])
 
