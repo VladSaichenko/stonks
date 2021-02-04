@@ -20,30 +20,46 @@ def format_date(s):
     return datetime.date(tpl[2], tpl[1], tpl[0])
 
 
-def get_custom_intervals():
-    def is_valid_interval(frm, to):
-        try:
-            frm = tuple(map(int, frm.split('.')))
-            to = tuple(map(int, to.split('.')))
-            frm = datetime.date(frm[2], frm[1], frm[0])
-            to = datetime.date(to[2], to[1], to[0])
+def is_valid_interval(frm, to):
+    try:
+        frm = tuple(map(int, frm.split('.')))
+        to = tuple(map(int, to.split('.')))
+        frm = datetime.date(frm[2], frm[1], frm[0])
+        to = datetime.date(to[2], to[1], to[0])
 
-            if frm <= to:
-                return True
-            print(cm.Fore.RED + 'Вторая дата раньше первой.')
-            return False
+        if frm <= to:
+            return True
+        print(cm.Fore.RED + 'Вторая дата раньше первой.')
+        return False
 
-        except ValueError:
-            print(cm.Fore.RED + 'Интервал записан не корректно.')
-            return False
+    except (ValueError, IndexError):
+        print(cm.Fore.RED + 'Интервал записан не корректно.')
+        return False
 
-    def get_interval(index):
+
+def get_interval(index=None):
+    if index:
         print(cm.Fore.CYAN + f'Интервал {index}/{n}')
-        frm = input('От: ')
-        to = input('До: ')
-        print()
-        return frm, to
+    frm = input('От: ')
+    to = input('До: ')
+    print()
+    return frm, to
 
+
+def get_period():
+    print('\nУкажите за какой период строить графики, иначе оставьте эти поля пустыми.')
+    correct = False
+    while not correct:
+        frm, to = get_interval()
+        if frm and to:
+            correct = is_valid_interval(frm, to)
+        else:
+            return None
+    print(cm.Fore.RESET)
+    return format_date(frm), format_date(to)
+
+
+def get_custom_intervals():
     n = int(input(cm.Fore.CYAN + 'Введите количество интервалов: '))
 
     intervals = []
@@ -95,7 +111,9 @@ def get_intervals():
         elif value == 0:
             intervals += get_custom_intervals()
 
-    return intervals
+    period = get_period()
+
+    return intervals, period
 
 
 def get_tickers():
@@ -104,7 +122,7 @@ def get_tickers():
     return tickers
 
 
-def analyse(intervals, tickers):
+def analyse(intervals, tickers, period):
     todays_global_df = pd.read_excel('todays.xlsx', engine='openpyxl')
 
     for file in tqdm(os.listdir('stocks')):
@@ -122,6 +140,10 @@ def analyse(intervals, tickers):
 
             tick_df = df[df.iloc[:, 0] == ticker]
             tick_df.iloc[:, 1] = tick_df.iloc[:, 1].apply(format_date)
+
+            if period:
+                print(period)
+                tick_df = tick_df[(period[0] <= tick_df.iloc[:, 1]) & (tick_df.iloc[:, 1] <= period[1])]
 
             try:
                 curr_price = float(todays_df.iat[0, 4])
@@ -170,6 +192,7 @@ def analyse(intervals, tickers):
 
 
 if __name__ == '__main__':
-    intervals = get_intervals()
+    intervals, period = get_intervals()
+    print('PERIOD IS', period)
     tickers = get_tickers()
-    analyse(intervals, tickers)
+    analyse(intervals, tickers, period)
